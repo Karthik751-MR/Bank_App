@@ -273,10 +273,6 @@ function formatMovementDate(date, locale) {
   if (daysPassed === 1) return 'Yesterday';
   if (daysPassed <= 7) return `${daysPassed} Days Ago`;
 
-  const day = `${date.getDate()}`.padStart(2, 0);
-  const month = `${date.getMonth() + 1}`.padStart(2, 0);
-  const year = date.getFullYear();
-  return `${day}/${month}/${year}`;
   return new Intl.DateTimeFormat(locale).format(date);
 }
 
@@ -288,16 +284,20 @@ const formatNumber = function (val, locale, currency) {
 };
 
 const displayMovements = function (acc, sort = false) {
-  const movs = sort
-    ? acc.movements.slice().sort((a, b) => a - b)
-    : acc.movements;
+  const movs = acc.movements.map((movement, index) => ({
+    movement,
+    date: acc.movementsDates[index],
+  }));
+
+  const movementsToDisplay = sort
+    ? movs.slice().sort((a, b) => a.movement - b.movement)
+    : movs;
 
   containerMovements.innerHTML = '';
 
-  movs.forEach((value, i) => {
-    const type = value > 0 ? 'deposit' : 'withdrawal';
-
-    const date = new Date(acc.movementsDates[i]);
+  movementsToDisplay.forEach((entry, i) => {
+    const type = entry.movement > 0 ? 'deposit' : 'withdrawal';
+    const date = new Date(entry.date);
     const displayDate = formatMovementDate(date, acc.locale);
 
     const html = `
@@ -307,12 +307,12 @@ const displayMovements = function (acc, sort = false) {
     } ${type}</div>
         <div class="movements__date">${displayDate}</div>
         <div class="movements__value">${formatNumber(
-          value,
+          entry.movement,
           acc.locale,
           acc.currency
         )}</div>
-        </div>
-        `;
+      </div>
+    `;
     containerMovements.insertAdjacentHTML('afterbegin', html);
   });
 };
@@ -385,9 +385,8 @@ btnLogin.addEventListener('click', function (e) {
   e.preventDefault();
 
   currentAccount = accounts.find(
-    (acc) => acc.userName === inputLoginUsername.value
+    acc => acc.userName === inputLoginUsername.value.trim().toLowerCase()
   );
-  console.log(currentAccount);
 
   if (currentAccount?.pin === +inputLoginPin.value) {
     // Display UI and Messages
@@ -444,11 +443,12 @@ btnLogin.addEventListener('click', function (e) {
 btnTransfer.addEventListener('click', function (e) {
   e.preventDefault();
 
+  if (!currentAccount) return;
+
   const receiverAccount = accounts.find(
-    (acc) => acc.userName === inputTransferTo.value
+    acc => acc.userName === inputTransferTo.value.trim().toLowerCase()
   );
   const amt = +inputTransferAmount.value;
-  console.log(receiverAccount, amt);
 
   inputTransferAmount.value = inputTransferTo.value = '';
 
@@ -458,7 +458,6 @@ btnTransfer.addEventListener('click', function (e) {
     amt <= currentAccount.balance &&
     receiverAccount.userName !== currentAccount.userName
   ) {
-    console.log(`Transfer VALID`);
     currentAccount.movements.push(-amt);
     receiverAccount.movements.push(amt);
 
@@ -479,6 +478,9 @@ btnTransfer.addEventListener('click', function (e) {
 
 btnLoan.addEventListener('click', function (e) {
   e.preventDefault();
+
+  if (!currentAccount) return;
+
   const amount = Math.floor(inputLoanAmount.value);
   if (
     amount > 0 &&
@@ -506,19 +508,21 @@ btnLoan.addEventListener('click', function (e) {
 
 btnClose.addEventListener('click', function (e) {
   e.preventDefault();
+
+  if (!currentAccount) return;
+
   if (
-    currentAccount.userName === inputCloseUsername.value &&
+    currentAccount.userName === inputCloseUsername.value.trim().toLowerCase() &&
     currentAccount.pin === +inputClosePin.value
   ) {
     const index = accounts.findIndex(
       (acc) => acc.userName === currentAccount.userName
     );
-    console.log(index);
-
     accounts.splice(index, 1);
 
     containerApp.style.opacity = 0;
     containerApp.classList.add('slide-out');
+    currentAccount = undefined;
   } else {
     shakeElement(document.querySelector('.operation--close'));
     addRedBorder(document.querySelector('.operation--close'));
@@ -531,6 +535,9 @@ let sorted = false;
 
 btnSort.addEventListener('click', function (e) {
   e.preventDefault();
+
+  if (!currentAccount) return;
+
   displayMovements(currentAccount, !sorted);
   sorted = !sorted;
 });
